@@ -1,23 +1,32 @@
 package validator
 
 import (
+	"fmt"
 	exists "github.com/ashkan90/golang-in_array"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
 const (
-	R_REQ 	= "required"
-	R_MAX 	= "max"
-	R_MIN 	= "min"
-	R_EQ  	= "equal"
-	R_CONF 	= "confirmation"
-	R_DT	= "date"
-
+	R_REQ  = "required"
+	R_MAX  = "max"
+	R_MIN  = "min"
+	R_EQ   = "equal"
+	R_CONF = "confirmation"
+	R_DT   = "date"
 )
 
+type comparor struct {
+	ruleField string
+	ruleKey   string
+	err       []string
+	comp1     interface{}
+	comp2     interface{}
+}
+
 type Rules struct {
-	Plain map[string][]string
+	Plain    map[string][]string
 	Validate *Validate
 }
 
@@ -39,14 +48,49 @@ func (r Rules) ruleFinder(ruleKey string) (bool, string, string) {
 }
 func (r Rules) ruleComparerProcessor(ruleKey string, ruleError []string) {
 	ok, k, v := r.ruleFinder(ruleKey)
-	values := r.Validate.getFormValues(k)// k'daki değerler dizgesi.
+	fmt.Println(k, v)
+	values := r.Validate.getFormValues(k) // k'daki değerler dizgesi.
 
-	v = strings.SplitAfter(v, ":")[1] // "equal", "23", [1] == 23
+	if strings.Contains(v, ":") {
+		v = strings.SplitAfter(v, ":")[1] // "equal", "23", [1] == 23
+	}
 	if ok {
+		comp := &comparor{
+			ruleField: k,
+			ruleKey:   ruleKey,
+			err:       ruleError,
+		}
 		for _, value := range values {
-			if v != value {
-				r.Validate.addError(k, ruleKey, ruleError)
-			}
+			comp.comp1 = v
+			comp.comp2 = value
+			r.ruleComparor(*comp)
+			//if ruleKey == R_EQ {
+			//	if v != value {
+			//		r.Validate.addError(k, ruleKey, ruleError)
+			//	}
+			//}
+
+		}
+	}
+}
+
+func (r Rules) ruleComparor(c comparor) {
+
+	if c.ruleKey == R_EQ {
+		if c.comp1 != c.comp2 {
+			r.Validate.addError(c.ruleField, c.ruleKey, c.err)
+		}
+	} else if c.ruleKey == R_MAX {
+		comp1, _ := strconv.Atoi(c.comp1.(string))
+		comp2, _ := strconv.Atoi(c.comp2.(string))
+		if comp1 > comp2 {
+			r.Validate.addError(c.ruleField, c.ruleKey, c.err)
+		}
+	} else if c.ruleKey == R_MIN {
+		comp1, _ := strconv.Atoi(c.comp1.(string))
+		comp2, _ := strconv.Atoi(c.comp2.(string))
+		if comp1 < comp2 {
+			r.Validate.addError(c.ruleField, c.ruleKey, c.err)
 		}
 	}
 }
@@ -75,12 +119,12 @@ func (r *Rules) Prepare(rules map[string]string, form interface{}) {
 
 }
 
-func (r Rules) Confirmation() {  }
+func (r Rules) Confirmation() {}
 func (r Rules) Required() {
 	if exists.In_array(R_REQ, r.Plain) {
 		form := r.Validate.Form.(url.Values)
 		for _, value := range r.Validate.FieldNames {
-			if !r.Validate.hasErrorKeyAlready(R_REQ) && len(form[value]) == 0 {
+			if !r.Validate.hasErrorKeyAlready(R_REQ, value) && len(form[value]) == 0 {
 				r.Validate.addError(value, R_REQ, []string{})
 			}
 		}
@@ -89,8 +133,15 @@ func (r Rules) Required() {
 func (r Rules) Equal() {
 	r.ruleComparerProcessor(R_EQ, []string{})
 }
-func (r Rules) Date() { }
+func (r Rules) Date() {}
 func (r Rules) Max() {
+	for key, value := range r.Plain {
+		for _, v := range value {
+			fmt.Println(key, v)
+		}
+	}
+
+	// her bir 'R_MAX' için r.ruleComparerProcessor() çalışmalı.
 	r.ruleComparerProcessor(R_MAX, []string{})
 }
 func (r Rules) Min() {
@@ -112,11 +163,10 @@ func (i Initializer) Run() map[string][]string {
 	return i.rules.Validate.Errors
 }
 
-
 type Validate struct {
-	Form interface{}
-	Errors map[string][]string
-	FieldNames []string
+	Form            interface{}
+	Errors          map[string][]string
+	FieldNames      []string
 	Internalization Internalization
 }
 
@@ -125,10 +175,10 @@ func (v Validate) hasErrorAlready(errField string) bool {
 	return ok && len(val) > 0
 }
 
-func (v Validate) hasErrorKeyAlready(errKey string) bool {
-	for _, value := range v.Errors {
+func (v Validate) hasErrorKeyAlready(errKey, fieldKey string) bool {
+	for key, value := range v.Errors {
 		for _, v := range value {
-			return strings.Contains(v, errKey)
+			return key == fieldKey && strings.Contains(v, errKey)
 		}
 	}
 	return false
@@ -148,8 +198,8 @@ func (v Validate) hasNamedErrorAlready(errField, errKey string) bool {
 }
 
 func (v *Validate) addError(errField string, errKey string, keys []string) {
-	messages 	:= v.Internalization.Messages()
-	errMessage 	:= messages[errKey]
+	messages := v.Internalization.Messages()
+	errMessage := messages[errKey]
 	v.Errors[errField] = append(v.Errors[errField], errMessage)
 }
 
@@ -168,22 +218,20 @@ func (v Validate) getFormValues(key string) []string {
 	return found
 }
 
+type Internalization struct{}
 
-type Internalization struct {}
-
-type IMessage interface { Messages() }
+type IMessage interface{ Messages() }
 
 func (i Internalization) Messages() map[string]string {
 	return map[string]string{
-		R_CONF	: "",
-		R_DT	: "",
-		R_REQ	: "{0} is required.",
-		R_MAX	: "{0} field cannot be greater than '{1}'",
-		R_MIN	: "{0} field cannot be lower than '{1}'",
-		R_EQ	: "{0} field must be '{1}'",
+		R_CONF: "",
+		R_DT:   "",
+		R_REQ:  "{0} is required.",
+		R_MAX:  "{0} field cannot be greater than '{1}'",
+		R_MIN:  "{0} field cannot be lower than '{1}'",
+		R_EQ:   "{0} field must be '{1}'",
 	}
 }
-
 
 func Load(rules map[string]string, form interface{}) Initializer {
 	rStruct := new(Rules)
@@ -193,6 +241,7 @@ func Load(rules map[string]string, form interface{}) Initializer {
 		rules: rStruct,
 	}
 }
+
 // validator.Load().Prepare(...)
 // validator.Run()
 
@@ -235,7 +284,6 @@ func mGetValuesAsSlice(d interface{}) []interface{} {
 		}
 	}
 
-
 	return values
 }
 func mSearchAndRetrieve(d interface{}, k string) interface{} {
@@ -261,4 +309,3 @@ func mSearchAndRetrieve(d interface{}, k string) interface{} {
 
 	return fVal
 }
-
