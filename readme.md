@@ -1,3 +1,5 @@
+# About Package
+
 ## Usage (Tested only with 'url.Values')
 Using validator is easy as much as needed.
 Some Usage rules:
@@ -8,9 +10,9 @@ Some Usage rules:
 
 There are three types of token<br> 
 <hr>
-First one (Separator): `|`<br>
-Second one (Value Input): `:`<br>
-Third one (Value Separator): `-`<br>
+First one (Separator): ``|`` <br>
+Second one (Value Input): ``:`` <br>
+Third one (Value Separator): ``-`` <br>
 <hr>
 
 ```
@@ -39,7 +41,7 @@ Strings are represented as character-bytes of array in memory like this:
 ``
 ['H', 'e', 'l', 'l', 'o', ' ', 'W'...]
 ``
-and we're counting its length then comparing your rule input.
+and we're counting its length then comparing with your rule input.
 
 
 
@@ -57,4 +59,5 @@ and we're counting its length then comparing your rule input.
 * [] Is field email ?
 * [x] Errors messages can be internalization
 * [] Agnostic rule checkers
+* [x] Any type form fields.
 * [] Tests
